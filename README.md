@@ -11,10 +11,11 @@ Package identity:
 - name: `rnaseq-expression-flow`
 - command: `taf-rnaseq-expression-flow`
 - kind: `flow`
-- version: `0.1.0-r1`
+- version: `0.2.0-r1`
 - license: Apache-2.0
+- repository: https://github.com/taffish/rnaseq-expression-flow
 
-## RNA-seq Flow Position
+## Flow Position
 
 This app is a reusable subflow in the TAFFISH bulk RNA-seq flow family. It can
 be run directly for Salmon-first expression quantification, and it is also
@@ -62,6 +63,35 @@ The script also uses ordinary shell utilities (`sh`, `awk`, `sed`, `date`,
 `mkdir`, `cp`, `rm`, `grep`, and related POSIX tools) for validation,
 bookkeeping, and provenance. It does not call host-installed `fastqc`,
 `fastp`, `salmon`, `R`, `tximport`, or `multiqc`.
+
+## Input Formats
+
+Single-end input:
+
+```text
+sample_id	read1
+S1	reads/S1.fq.gz
+S2	reads/S2.fq.gz
+```
+
+Paired-end input:
+
+```text
+sample_id	read1	read2
+S1	reads/S1_R1.fq.gz	reads/S1_R2.fq.gz
+S2	reads/S2_R1.fq.gz	reads/S2_R2.fq.gz
+```
+
+Rules:
+
+- `sample_id` must be unique and non-empty.
+- `sample_id` may contain letters, numbers, dots, underscores, and hyphens.
+- Relative FASTQ paths are interpreted relative to the sample table location.
+- If `read2` is present and non-empty, the sample is treated as paired-end.
+- Other columns such as `condition`, `batch`, `library_layout`, and
+  `strandedness` are preserved in the input snapshot but are not interpreted by
+  this r1 expression flow.
+
 
 ## Usage
 
@@ -124,35 +154,35 @@ Common controls:
 - `--force`: replace the standard rnaseq-expression-flow output files inside
   an existing output directory.
 
-## Sample Table
+## Advanced Per-Step Passthrough
 
-Single-end input:
+Most users should rely on the stable parameters above. `0.2.0-r1` also exposes
+optional `@step:` slots for native tool parameters that are not modeled by the
+flow. They default to empty and only affect the named call site when explicitly
+supplied:
 
-```text
-sample_id	read1
-S1	reads/S1.fq.gz
-S2	reads/S2.fq.gz
+```sh
+taf-rnaseq-expression-flow ... @salmon-quant-pe-step: --seqBias @:
 ```
 
-Paired-end input:
+The general syntax is documented in the
+[TAFFISH Flow Developer Guide (English)](https://github.com/taffish/taffish-docs/blob/main/en/taf-flow-developer-guide.en.md)
+and [TAFFISH Flow 开发者指南（中文）](https://github.com/taffish/taffish-docs/blob/main/zh/taf-flow-developer-guide.cn.md).
 
-```text
-sample_id	read1	read2
-S1	reads/S1_R1.fq.gz	reads/S1_R2.fq.gz
-S2	reads/S2_R1.fq.gz	reads/S2_R2.fq.gz
-```
+| Slot | Native call site |
+| --- | --- |
+| `@fastqc-pe-step: ... @:` | FastQC for paired-end FASTQ |
+| `@fastqc-se-step: ... @:` | FastQC for single-end FASTQ |
+| `@fastp-pe-step: ... @:` | fastp paired-end trimming |
+| `@fastp-se-step: ... @:` | fastp single-end trimming |
+| `@salmon-quant-pe-step: ... @:` | `salmon quant` for paired-end samples |
+| `@salmon-quant-se-step: ... @:` | `salmon quant` for single-end samples |
+| `@tximport-step: ... @:` | `rnaseq-tximport` R wrapper |
+| `@salmon-quantmerge-counts-step: ... @:` | `salmon quantmerge` for NumReads |
+| `@salmon-quantmerge-tpm-step: ... @:` | `salmon quantmerge` for TPM |
+| `@multiqc-step: ... @:` | MultiQC report generation |
 
-Rules:
-
-- `sample_id` must be unique and non-empty.
-- `sample_id` may contain letters, numbers, dots, underscores, and hyphens.
-- Relative FASTQ paths are interpreted relative to the sample table location.
-- If `read2` is present and non-empty, the sample is treated as paired-end.
-- Other columns such as `condition`, `batch`, `library_layout`, and
-  `strandedness` are preserved in the input snapshot but are not interpreted by
-  this r1 expression flow.
-
-## Outputs
+## Output Layout
 
 All flow-created outputs are written under `<outdir>/`:
 
@@ -210,7 +240,7 @@ Downstream RNA-seq flows should consume:
 - `04_reports/quant_files.tsv`
 - `00_inputs/tx2gene.tsv`
 
-## Data Flow
+## Data Flow and Contracts
 
 1. Validate sample table, Salmon index, `tx2gene.tsv`, and output directory.
 2. Copy `samples.tsv` and `tx2gene.tsv` into `<outdir>/00_inputs/`, then write
@@ -289,3 +319,10 @@ downloading anything. The central data tree can be prepared with
 `repos/apps/bio/flows/rna-seq/test-data/yeast/rnaseq-yeast-get-data`; downstream
 formal tests read it via `TAFFISH_RNASEQ_TESTDATA` or the default local
 `test-data/yeast/data/03_results` path.
+
+## License and Citation
+
+TAFFISH app packaging: Apache-2.0.
+
+Upstream tools keep their own license and citation requirements. See the
+dependency app records and upstream projects for details.

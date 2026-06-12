@@ -13,13 +13,23 @@ ARGS
   10
 <(--counts-from-abundance)counts-from-abundance>
   no
+<(@:)fastqc-pe-step>
+<(@:)fastqc-se-step>
+<(@:)fastp-pe-step>
+<(@:)fastp-se-step>
+<(@:)salmon-quant-pe-step>
+<(@:)salmon-quant-se-step>
+<(@:)tximport-step>
+<(@:)salmon-quantmerge-counts-step>
+<(@:)salmon-quantmerge-tpm-step>
+<(@:)multiqc-step>
 
 RUN
 <taffish>
 set -eu
 
 FLOW_NAME="rnaseq-expression-flow"
-FLOW_VERSION="0.1.0-r1"
+FLOW_VERSION="0.2.0-r1"
 
 samples_arg="::!(--samples)samples::"
 index_arg="::!(--index)index::"
@@ -132,7 +142,7 @@ done
 
 case "$quantifier" in
     salmon) ;;
-    *) fail "rnaseq-expression-flow 0.1.0-r1 supports only --quantifier salmon" ;;
+    *) fail "rnaseq-expression-flow 0.2.0-r1 supports only --quantifier salmon" ;;
 esac
 
 case "$threads" in
@@ -337,7 +347,9 @@ if [ "$skip_fastqc_flag" = "false" ]; then
         mkdir -p "$sample_fastqc_dir"
         cmd="taf-fastqc-v0.12.1-r1 fastqc --threads $(sq "$threads") --outdir $(sq "$sample_fastqc_dir") --quiet $(sq "$read1")"
         if [ -n "$read2" ]; then
-            cmd="$cmd $(sq "$read2")"
+            cmd="$cmd $(sq "$read2") ::(@:)fastqc-pe-step::"
+        else
+            cmd="$cmd ::(@:)fastqc-se-step::"
         fi
         step_name="02_fastqc.$sid"
         step_log="$logs_steps_dir/${step_name}.log"
@@ -347,9 +359,9 @@ if [ "$skip_fastqc_flag" = "false" ]; then
             printf '# step: %s\n' "$step_name"
             printf '# command: %s\n' "$cmd"
             if [ -n "$read2" ]; then
-                [[taf: taf-fastqc-v0.12.1-r1 fastqc --threads '"$threads"' --outdir '"$sample_fastqc_dir"' --quiet '"$read1"' '"$read2"' ]] </dev/null
+                [[taf: taf-fastqc-v0.12.1-r1 fastqc --threads '"$threads"' --outdir '"$sample_fastqc_dir"' --quiet '"$read1"' '"$read2"' ::(@:)fastqc-pe-step:: ]] </dev/null
             else
-                [[taf: taf-fastqc-v0.12.1-r1 fastqc --threads '"$threads"' --outdir '"$sample_fastqc_dir"' --quiet '"$read1"' ]] </dev/null
+                [[taf: taf-fastqc-v0.12.1-r1 fastqc --threads '"$threads"' --outdir '"$sample_fastqc_dir"' --quiet '"$read1"' ::(@:)fastqc-se-step:: ]] </dev/null
             fi
         } > "$step_log" 2>&1; then
             log "DONE  $step_name"
@@ -379,7 +391,7 @@ if [ "$trim_flag" = "true" ]; then
         if [ "$layout" = "paired" ]; then
             clean_r1="$trimmed_dir/${sid}_R1.clean.fastq.gz"
             clean_r2="$trimmed_dir/${sid}_R2.clean.fastq.gz"
-            cmd="taf-fastp-v1.3.3-r3 fastp -i $(sq "$read1") -I $(sq "$read2") -o $(sq "$clean_r1") -O $(sq "$clean_r2") -h $(sq "$fastp_html") -j $(sq "$fastp_json") -w $(sq "$threads")"
+            cmd="taf-fastp-v1.3.3-r3 fastp -i $(sq "$read1") -I $(sq "$read2") -o $(sq "$clean_r1") -O $(sq "$clean_r2") -h $(sq "$fastp_html") -j $(sq "$fastp_json") -w $(sq "$threads") ::(@:)fastp-pe-step::"
             step_name="03_fastp.$sid"
             step_log="$logs_steps_dir/${step_name}.log"
             record_command "$step_name" "$cmd"
@@ -387,7 +399,7 @@ if [ "$trim_flag" = "true" ]; then
             if {
                 printf '# step: %s\n' "$step_name"
                 printf '# command: %s\n' "$cmd"
-                [[taf: taf-fastp-v1.3.3-r3 fastp -i '"$read1"' -I '"$read2"' -o '"$clean_r1"' -O '"$clean_r2"' -h '"$fastp_html"' -j '"$fastp_json"' -w '"$threads"' ]] </dev/null
+                [[taf: taf-fastp-v1.3.3-r3 fastp -i '"$read1"' -I '"$read2"' -o '"$clean_r1"' -O '"$clean_r2"' -h '"$fastp_html"' -j '"$fastp_json"' -w '"$threads"' ::(@:)fastp-pe-step:: ]] </dev/null
             } > "$step_log" 2>&1; then
                 log "DONE  $step_name"
             else
@@ -400,7 +412,7 @@ if [ "$trim_flag" = "true" ]; then
             printf '%s\t%s\t%s\t%s\ttrue\n' "$sid" "$clean_r1" "$clean_r2" "$layout" >> "$quant_inputs"
         else
             clean_r1="$trimmed_dir/${sid}.clean.fastq.gz"
-            cmd="taf-fastp-v1.3.3-r3 fastp -i $(sq "$read1") -o $(sq "$clean_r1") -h $(sq "$fastp_html") -j $(sq "$fastp_json") -w $(sq "$threads")"
+            cmd="taf-fastp-v1.3.3-r3 fastp -i $(sq "$read1") -o $(sq "$clean_r1") -h $(sq "$fastp_html") -j $(sq "$fastp_json") -w $(sq "$threads") ::(@:)fastp-se-step::"
             step_name="03_fastp.$sid"
             step_log="$logs_steps_dir/${step_name}.log"
             record_command "$step_name" "$cmd"
@@ -408,7 +420,7 @@ if [ "$trim_flag" = "true" ]; then
             if {
                 printf '# step: %s\n' "$step_name"
                 printf '# command: %s\n' "$cmd"
-                [[taf: taf-fastp-v1.3.3-r3 fastp -i '"$read1"' -o '"$clean_r1"' -h '"$fastp_html"' -j '"$fastp_json"' -w '"$threads"' ]] </dev/null
+                [[taf: taf-fastp-v1.3.3-r3 fastp -i '"$read1"' -o '"$clean_r1"' -h '"$fastp_html"' -j '"$fastp_json"' -w '"$threads"' ::(@:)fastp-se-step:: ]] </dev/null
             } > "$step_log" 2>&1; then
                 log "DONE  $step_name"
             else
@@ -437,7 +449,7 @@ while IFS="$tab" read -r sid read1 read2 layout trimmed || [ -n "$sid" ]; do
     [ "$line_no" -eq 1 ] && continue
     sample_quant_dir="$salmon_dir/$sid"
     if [ "$layout" = "paired" ]; then
-        cmd="taf-salmon-v1.11.4-r1 salmon --no-version-check quant -i $(sq "$index_path") -l $(sq "$library_type") -1 $(sq "$read1") -2 $(sq "$read2") -o $(sq "$sample_quant_dir") -p $(sq "$threads") --validateMappings --minAssignedFrags $(sq "$min_assigned_frags") -q"
+        cmd="taf-salmon-v1.11.4-r1 salmon --no-version-check quant -i $(sq "$index_path") -l $(sq "$library_type") -1 $(sq "$read1") -2 $(sq "$read2") -o $(sq "$sample_quant_dir") -p $(sq "$threads") --validateMappings --minAssignedFrags $(sq "$min_assigned_frags") -q ::(@:)salmon-quant-pe-step::"
         step_name="04_salmon_quant.$sid"
         step_log="$logs_steps_dir/${step_name}.log"
         record_command "$step_name" "$cmd"
@@ -445,7 +457,7 @@ while IFS="$tab" read -r sid read1 read2 layout trimmed || [ -n "$sid" ]; do
         if {
             printf '# step: %s\n' "$step_name"
             printf '# command: %s\n' "$cmd"
-            [[taf: taf-salmon-v1.11.4-r1 salmon --no-version-check quant -i '"$index_path"' -l '"$library_type"' -1 '"$read1"' -2 '"$read2"' -o '"$sample_quant_dir"' -p '"$threads"' --validateMappings --minAssignedFrags '"$min_assigned_frags"' -q ]] </dev/null
+            [[taf: taf-salmon-v1.11.4-r1 salmon --no-version-check quant -i '"$index_path"' -l '"$library_type"' -1 '"$read1"' -2 '"$read2"' -o '"$sample_quant_dir"' -p '"$threads"' --validateMappings --minAssignedFrags '"$min_assigned_frags"' -q ::(@:)salmon-quant-pe-step:: ]] </dev/null
         } > "$step_log" 2>&1; then
             log "DONE  $step_name"
         else
@@ -454,7 +466,7 @@ while IFS="$tab" read -r sid read1 read2 layout trimmed || [ -n "$sid" ]; do
             exit "$status"
         fi
     else
-        cmd="taf-salmon-v1.11.4-r1 salmon --no-version-check quant -i $(sq "$index_path") -l $(sq "$library_type") -r $(sq "$read1") -o $(sq "$sample_quant_dir") -p $(sq "$threads") --validateMappings --minAssignedFrags $(sq "$min_assigned_frags") -q"
+        cmd="taf-salmon-v1.11.4-r1 salmon --no-version-check quant -i $(sq "$index_path") -l $(sq "$library_type") -r $(sq "$read1") -o $(sq "$sample_quant_dir") -p $(sq "$threads") --validateMappings --minAssignedFrags $(sq "$min_assigned_frags") -q ::(@:)salmon-quant-se-step::"
         step_name="04_salmon_quant.$sid"
         step_log="$logs_steps_dir/${step_name}.log"
         record_command "$step_name" "$cmd"
@@ -462,7 +474,7 @@ while IFS="$tab" read -r sid read1 read2 layout trimmed || [ -n "$sid" ]; do
         if {
             printf '# step: %s\n' "$step_name"
             printf '# command: %s\n' "$cmd"
-            [[taf: taf-salmon-v1.11.4-r1 salmon --no-version-check quant -i '"$index_path"' -l '"$library_type"' -r '"$read1"' -o '"$sample_quant_dir"' -p '"$threads"' --validateMappings --minAssignedFrags '"$min_assigned_frags"' -q ]] </dev/null
+            [[taf: taf-salmon-v1.11.4-r1 salmon --no-version-check quant -i '"$index_path"' -l '"$library_type"' -r '"$read1"' -o '"$sample_quant_dir"' -p '"$threads"' --validateMappings --minAssignedFrags '"$min_assigned_frags"' -q ::(@:)salmon-quant-se-step:: ]] </dev/null
         } > "$step_log" 2>&1; then
             log "DONE  $step_name"
         else
@@ -477,13 +489,13 @@ done < "$quant_inputs"
 
 step_name="05_tximport"
 step_log="$logs_steps_dir/${step_name}.log"
-cmd="taf-bioconductor-rnaseq-v3.23-r1 rnaseq-tximport --samples $(sq "$quant_files") --tx2gene $(sq "$local_tx2gene") --type salmon --outdir $(sq "$tximport_dir") --counts-from-abundance $(sq "$counts_from_abundance") --force"
+cmd="taf-bioconductor-rnaseq-v3.23-r1 rnaseq-tximport --samples $(sq "$quant_files") --tx2gene $(sq "$local_tx2gene") --type salmon --outdir $(sq "$tximport_dir") --counts-from-abundance $(sq "$counts_from_abundance") --force ::(@:)tximport-step::"
 record_command "$step_name" "$cmd"
 log "START $step_name"
 if {
     printf '# step: %s\n' "$step_name"
     printf '# command: %s\n' "$cmd"
-    [[taf: taf-bioconductor-rnaseq-v3.23-r1 rnaseq-tximport --samples '"$quant_files"' --tx2gene '"$local_tx2gene"' --type salmon --outdir '"$tximport_dir"' --counts-from-abundance '"$counts_from_abundance"' --force ]] </dev/null
+    [[taf: taf-bioconductor-rnaseq-v3.23-r1 rnaseq-tximport --samples '"$quant_files"' --tx2gene '"$local_tx2gene"' --type salmon --outdir '"$tximport_dir"' --counts-from-abundance '"$counts_from_abundance"' --force ::(@:)tximport-step:: ]] </dev/null
 } > "$step_log" 2>&1; then
     log "DONE  $step_name"
 else
@@ -513,19 +525,19 @@ quantmerge_tpm_script="$intermediate_dir/salmon_quantmerge_tpm.sh"
 
 step_name="05_salmon_quantmerge_counts"
 step_log="$logs_steps_dir/${step_name}.log"
-cmd="taf-salmon-v1.11.4-r1 salmon --no-version-check quantmerge --quants$quants_args --names$names_args --column NumReads -o $(sq "$transcript_counts_raw")"
+cmd="taf-salmon-v1.11.4-r1 salmon --no-version-check quantmerge ::(@:)salmon-quantmerge-counts-step:: --quants$quants_args --names$names_args --column NumReads -o $(sq "$transcript_counts_raw")"
 record_command "$step_name" "$cmd"
 {
     printf '#!/bin/sh\n'
     printf 'set -eu\n'
-    printf 'salmon --no-version-check quantmerge --quants%s --names%s --column NumReads -o %s\n' "$quants_args" "$names_args" "$(sq "$transcript_counts_raw")"
+    printf 'salmon --no-version-check quantmerge "$@" --quants%s --names%s --column NumReads -o %s\n' "$quants_args" "$names_args" "$(sq "$transcript_counts_raw")"
 } > "$quantmerge_counts_script"
 chmod +x "$quantmerge_counts_script"
 log "START $step_name"
 if {
     printf '# step: %s\n' "$step_name"
     printf '# command: %s\n' "$cmd"
-    [[taf: taf-salmon-v1.11.4-r1 sh '"$quantmerge_counts_script"' ]] </dev/null
+    [[taf: taf-salmon-v1.11.4-r1 sh '"$quantmerge_counts_script"' ::(@:)salmon-quantmerge-counts-step:: ]] </dev/null
 } > "$step_log" 2>&1; then
     log "DONE  $step_name"
 else
@@ -536,19 +548,19 @@ fi
 
 step_name="05_salmon_quantmerge_tpm"
 step_log="$logs_steps_dir/${step_name}.log"
-cmd="taf-salmon-v1.11.4-r1 salmon --no-version-check quantmerge --quants$quants_args --names$names_args --column TPM -o $(sq "$transcript_tpm_raw")"
+cmd="taf-salmon-v1.11.4-r1 salmon --no-version-check quantmerge ::(@:)salmon-quantmerge-tpm-step:: --quants$quants_args --names$names_args --column TPM -o $(sq "$transcript_tpm_raw")"
 record_command "$step_name" "$cmd"
 {
     printf '#!/bin/sh\n'
     printf 'set -eu\n'
-    printf 'salmon --no-version-check quantmerge --quants%s --names%s --column TPM -o %s\n' "$quants_args" "$names_args" "$(sq "$transcript_tpm_raw")"
+    printf 'salmon --no-version-check quantmerge "$@" --quants%s --names%s --column TPM -o %s\n' "$quants_args" "$names_args" "$(sq "$transcript_tpm_raw")"
 } > "$quantmerge_tpm_script"
 chmod +x "$quantmerge_tpm_script"
 log "START $step_name"
 if {
     printf '# step: %s\n' "$step_name"
     printf '# command: %s\n' "$cmd"
-    [[taf: taf-salmon-v1.11.4-r1 sh '"$quantmerge_tpm_script"' ]] </dev/null
+    [[taf: taf-salmon-v1.11.4-r1 sh '"$quantmerge_tpm_script"' ::(@:)salmon-quantmerge-tpm-step:: ]] </dev/null
 } > "$step_log" 2>&1; then
     log "DONE  $step_name"
 else
@@ -561,13 +573,13 @@ awk -F '\t' 'BEGIN { OFS = "\t" } NR == 1 { $1 = "tx_id" } { print }' "$transcri
 
 step_name="06_multiqc"
 step_log="$logs_steps_dir/${step_name}.log"
-cmd="taf-multiqc-v1.35-r2 multiqc $(sq "$outdir") --outdir $(sq "$reports_dir") --filename multiqc_report.html --data-format json --force --quiet"
+cmd="taf-multiqc-v1.35-r2 multiqc $(sq "$outdir") --outdir $(sq "$reports_dir") --filename multiqc_report.html --data-format json --force --quiet ::(@:)multiqc-step::"
 record_command "$step_name" "$cmd"
 log "START $step_name"
 if {
     printf '# step: %s\n' "$step_name"
     printf '# command: %s\n' "$cmd"
-    [[taf: taf-multiqc-v1.35-r2 multiqc '"$outdir"' --outdir '"$reports_dir"' --filename multiqc_report.html --data-format json --force --quiet ]] </dev/null
+    [[taf: taf-multiqc-v1.35-r2 multiqc '"$outdir"' --outdir '"$reports_dir"' --filename multiqc_report.html --data-format json --force --quiet ::(@:)multiqc-step:: ]] </dev/null
 } > "$step_log" 2>&1; then
     log "DONE  $step_name"
 else

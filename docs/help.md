@@ -1,15 +1,10 @@
-rnaseq-expression-flow 0.1.0-r1
+rnaseq-expression-flow 0.2.0-r1
 
 Purpose:
   Quantify bulk RNA-seq FASTQ samples against a prebuilt Salmon transcriptome
   index, then write per-sample quant.sf files, gene-level matrices,
   transcript-level matrices, MultiQC reports, logs, commands, versions,
   methods, and a manifest under one explicit output directory.
-
-Flow family role:
-  This is a TAFFISH RNA-seq subflow. It can be run directly for Salmon-first
-  expression quantification, and its stable matrix outputs are intended for
-  future rnaseq-standard-flow orchestration.
 
 Usage:
   taf-rnaseq-expression-flow \
@@ -64,6 +59,49 @@ Common options:
       Replace the standard rnaseq-expression-flow output files inside an
       existing output directory.
 
+Key outputs:
+  <outdir>/03_results/salmon/<sample>/quant.sf
+      Per-sample Salmon quantification.
+
+  <outdir>/03_results/matrices/gene_counts.tsv
+      Gene-level count matrix for DE workflows.
+
+  <outdir>/03_results/matrices/gene_tpm.tsv
+      Gene-level TPM matrix.
+
+  <outdir>/03_results/matrices/transcript_counts.tsv
+      Transcript-level count matrix.
+
+  <outdir>/04_reports/multiqc_report.html
+      FASTQ/trim/quantification QC summary.
+
+  <outdir>/04_reports/
+      quant_files.tsv, expression_summary.tsv, commands.sh, versions.tsv,
+      methods.txt, flow_summary.tsv, and provenance.
+
+Upstream/downstream:
+  Upstream:
+    rnaseq-index-flow provides salmon_index and tx2gene.tsv.
+
+  Downstream:
+    rnaseq-de-flow can use gene_counts.tsv.
+    rnaseq-report-flow can collect the expression output directory.
+
+Advanced step passthrough:
+  Optional expert slots for native tool parameters. They default to empty
+  and are not needed for normal use.
+
+  @fastqc-pe-step: ... @: FastQC for paired-end FASTQ.
+  @fastqc-se-step: ... @: FastQC for single-end FASTQ.
+  @fastp-pe-step: ... @: fastp paired-end trimming.
+  @fastp-se-step: ... @: fastp single-end trimming.
+  @salmon-quant-pe-step: ... @: salmon quant for paired-end samples.
+  @salmon-quant-se-step: ... @: salmon quant for single-end samples.
+  @tximport-step: ... @: rnaseq-tximport R wrapper.
+  @salmon-quantmerge-counts-step: ... @: salmon quantmerge NumReads.
+  @salmon-quantmerge-tpm-step: ... @: salmon quantmerge TPM.
+  @multiqc-step: ... @: MultiQC report generation.
+
 Sample table examples:
   Single-end:
     sample_id<TAB>read1
@@ -75,45 +113,15 @@ Sample table examples:
     S1<TAB>reads/S1_R1.fq.gz<TAB>reads/S1_R2.fq.gz
     S2<TAB>reads/S2_R1.fq.gz<TAB>reads/S2_R2.fq.gz
 
-Output tree:
-  <outdir>/00_inputs/samples.tsv
-  <outdir>/00_inputs/samples.normalized.tsv
-  <outdir>/00_inputs/input_files.tsv
-  <outdir>/00_inputs/tx2gene.tsv
-  <outdir>/01_logs/flow.log
-  <outdir>/01_logs/steps/
-  <outdir>/02_intermediate/trimmed/
-  <outdir>/02_intermediate/tximport/
-  <outdir>/03_results/fastqc/
-  <outdir>/03_results/fastp/
-  <outdir>/03_results/salmon/<sample>/quant.sf
-  <outdir>/03_results/matrices/gene_counts.tsv
-  <outdir>/03_results/matrices/gene_tpm.tsv
-  <outdir>/03_results/matrices/gene_length.tsv
-  <outdir>/03_results/matrices/transcript_counts.tsv
-  <outdir>/03_results/matrices/transcript_tpm.tsv
-  <outdir>/04_reports/multiqc_report.html
-  <outdir>/04_reports/expression_summary.tsv
-  <outdir>/04_reports/quant_files.tsv
-  <outdir>/04_reports/commands.sh
-  <outdir>/04_reports/versions.tsv
-  <outdir>/04_reports/methods.txt
-  <outdir>/04_reports/flow_summary.tsv
-  <outdir>/run.manifest.json
-
-Dependencies:
-  taf-fastqc 0.12.1-r1
-  taf-fastp 1.3.3-r3
-  taf-salmon 1.11.4-r1
-  taf-bioconductor-rnaseq 3.23-r1
-  taf-multiqc 1.35-r2
-
 Boundaries:
   r1 is Salmon-first and does not build indexes, run Kallisto quantification,
   perform differential expression, run genome alignment, run BAM-level RNA-seq
   QC, infer experimental design, or download reference data. It reads FASTQ
   files, a Salmon index, and tx2gene.tsv, writes only under <outdir>/, and does
   not modify input files or reference resources.
+
+Detailed documentation:
+  https://github.com/taffish/rnaseq-expression-flow
 
 Wrapper options:
   -h, --help       Show this help.
